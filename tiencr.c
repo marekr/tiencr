@@ -222,7 +222,7 @@ int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size
 
 	fwrite(header_str_bytes,sizeof(header_str_bytes),1,fp);
 	fwrite(dummy_buffer,8,1,fp);
-	xor_key(key, key_len, 1);
+	xor_key(key, key_len, 0);
 	fwrite(key,key_len,1,fp);
 
 	for(i=0;i<buf_size;i++)
@@ -395,7 +395,7 @@ void xor_key(uint8_t* key, size_t len, bool dir)
 	}
 	else
 	{
-		for( i = len-1; len > 0; --len )
+		for( i = len-1; i > 0; --i )
 			key[i] ^= original_key[i-1];
 	}
 
