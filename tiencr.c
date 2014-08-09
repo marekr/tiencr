@@ -43,6 +43,7 @@ typedef int bool;
 #define ERR_FILE_READ	4
 
 int read_encr(const char* file_path, uint8_t** buffer, size_t* size);
+int read_file_to_buffer(const char* file_path, uint8_t** buffer, size_t* buf_size);
 int write_buffer(const char* file_path, uint8_t* buffer, size_t buf_size);
 char encode_char(char* key, size_t key_len, char input_char, size_t* i);
 void xor_key(char* key, size_t len, bool dir);
@@ -61,17 +62,22 @@ int main(int argc, char *argv[])
 	char* output_path = NULL;
 	size_t encr_buffer_size = 0;
 
+	bool decrypt = true;
+
 	/*	process input args */
 	
 	int opt;
-	while ((opt = getopt (argc, argv, "i:o:")) != -1)
+	while ((opt = getopt (argc, argv, "dei:o:")) != -1)
 	{
 		switch (opt)
 		{
+			case 'e':
+				decrypt = false;
+				break;
 			case 'i':
 				input_path = (char *)malloc(strlen(optarg)+1);
 				strcpy(input_path, optarg);
-			break;
+				break;
 			case 'o':
 				output_path = (char *)malloc(strlen(optarg)+1);
 				strcpy(output_path, optarg);
@@ -86,27 +92,88 @@ int main(int argc, char *argv[])
 		goto err;
 	}
 
-	if( output_path == NULL )
+	if( decrypt )
 	{
-		output_path = (char *)malloc(strlen(input_path)+1+strlen(decrypted_ext));
-		memset(output_path,0,strlen(input_path)+1+strlen(decrypted_ext));
-		strcat(output_path,input_path);
-		strcat(output_path,decrypted_ext);
+		if( output_path == NULL )
+		{
+			output_path = (char *)malloc(strlen(input_path)+1+strlen(decrypted_ext));
+			memset(output_path,0,strlen(input_path)+1+strlen(decrypted_ext));
+			strcat(output_path,input_path);
+			strcat(output_path,decrypted_ext);
+		}
+		ret = read_encr(input_path,&buffer,&encr_buffer_size);
+		if( ret )
+		{
+			goto err;
+		}
+
+		ret = write_buffer(output_path, buffer, encr_buffer_size);
+		if( !ret )
+		{
+			printf("Done\n");
+		}
 	}
-	ret = read_encr(input_path,&buffer,&encr_buffer_size);
-	if( ret )
+	else
 	{
-		goto err;
+		/* encrypt the file! */
+		read_file_to_buffer(input_path, &buffer, &encr_buffer_size);
 	}
 
-	ret = write_buffer(output_path, buffer, encr_buffer_size);
-	if( !ret )
-	{
-		printf("Done\n");
-	}
 err:
 	free(output_path);
 	free(input_path);
+
+	return ret;
+}
+
+int read_file_to_buffer(const char* file_path, uint8_t** buffer, size_t* buf_size)
+{
+	int ret = 0;
+	FILE *fp = NULL;
+	size_t file_size;
+	uint8_t* buf_ptr;
+
+	fp = fopen(file_path,"rb");
+
+	if( fp == NULL )
+	{
+		printf("Error opening .encr file\n");
+		ret = ERR_FILE_IO;
+		goto err;
+	}
+	
+	fseek(fp,0,SEEK_END);
+	file_size = ftell(fp);
+	fseek(fp,0,SEEK_SET);
+
+	if( !file_size )
+	{
+		ret = ERR_FILE_READ;
+		goto err;
+	}
+
+	buf_ptr = (uint8_t *)malloc(file_size);
+	if( buf_ptr == NULL )
+	{
+		ret= ERR_MEMORY;
+		goto err;
+	}
+
+	ret = fread(buf_ptr, file_size, 1, fp);
+	if( ret != 1 )
+	{
+		ret = ERR_FILE_READ;
+		goto err;
+	}
+
+	*buffer = buf_ptr;
+	*buf_size = file_size;
+	
+	fclose(fp);
+	return ret;
+err:
+	free(buffer);
+	fclose(fp);
 
 	return ret;
 }
