@@ -27,6 +27,7 @@
 #include <string.h>
 #include <conio.h>
 #include <stdint.h>
+#include "getopt.h"
 
 #ifdef _WIN32
 typedef int bool;
@@ -35,10 +36,13 @@ typedef int bool;
 #endif
 
 #define HEADER_LEN 13
-#define ERR_MEMORY 1
-#define ERR_FILE_IO 2
-#define ERR_FILE_READ 3
+#define ERR_NONE		0
+#define ERR_ARGS		1
+#define ERR_MEMORY		2
+#define ERR_FILE_IO		3
+#define ERR_FILE_READ	4
 
+int read_encr(const char* file_path, uint8_t* buffer);
 char encode_char(char* key, size_t key_len, char input_char, size_t* i);
 void xor_key(char* key, size_t len, bool dir);
 
@@ -47,21 +51,62 @@ void xor_key(char* key, size_t len, bool dir);
 
 const char header_str_bytes[] = {'T','I','E','N','C','R'};
 
-int main()
+int main(int argc, char *argv[])
+{
+	int ret = 0;
+	uint8_t* buffer = NULL;
+
+	char* input_path = NULL;
+	char* output_path = NULL;
+
+	/*	process input args */
+	
+	int opt;
+	while ((opt = getopt (argc, argv, "i:o:")) != -1)
+	{
+		switch (opt)
+		{
+			case 'i':
+				input_path = (char *)malloc(strlen(optarg)+1);
+				strcpy(input_path, optarg);
+			break;
+			case 'o':
+				output_path = (char *)malloc(strlen(optarg)+1);
+				strcpy(output_path, optarg);
+				break;
+		}
+	}
+
+	if( input_path == NULL )
+	{
+		printf("Error: Input file not specified\n");
+		ret = ERR_ARGS;
+		goto err;
+	}
+
+	ret = read_encr(input_path,buffer);
+
+err:
+	free(output_path);
+	free(input_path);
+
+	return ret;
+}
+
+int read_encr(const char* file_path, uint8_t* buffer)
 {
 	int ret = 0;
 	FILE *fp = NULL;
 	uint8_t header[HEADER_LEN] = {0};
 	size_t encode_index = 0;
 	size_t key_len = 0;
-	char* buf_ptr;
+	uint8_t* buf_ptr;
 	char* key_buf;
 	size_t i = 0;
-	char* buffer;
-	size_t  file_size;
+	size_t file_size;
 	size_t res;
-
-	fp = fopen("test.encr","rb");
+	
+	fp = fopen(file_path,"rb");
 
 	if( fp == NULL )
 	{
@@ -74,7 +119,7 @@ int main()
 	fseek(fp,0,SEEK_END);
 	file_size = ftell(fp);
 
-	buffer = (char*)malloc(file_size);
+	buffer = (uint8_t*)malloc(file_size);
 	buf_ptr = buffer;
 	
 	/* Back to the header */
@@ -123,22 +168,26 @@ int main()
 	xor_key(key_buf, key_len, 1);
 
 	/* Read and decode to buffer */
-	while(!feof(fp))
+	i = 0;
+	while(!feof(fp) && i < file_size)
 	{
 		res = fread(buf_ptr,1,1,fp);
 		if( res != 1 )
 		{
-			ret = ERR_FILE_READ;
-			goto err;
+			break;
 		}
 	
 		*buf_ptr = encode_char(key_buf, key_len, *buf_ptr, &encode_index);
-		printf("%x", *buf_ptr);
+		printf("%c", *buf_ptr);
 		buf_ptr++;
+		i++;
 	}
 
-	getch();
+	fclose(fp);
+
+	return ret;
 err:
+	fclose(fp);
 	free(buffer);
 	free(key_buf);
 	return ret;
