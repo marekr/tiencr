@@ -42,13 +42,14 @@ typedef int bool;
 #define ERR_FILE_IO		3
 #define ERR_FILE_READ	4
 
-int read_encr(const char* file_path, uint8_t* buffer);
+int read_encr(const char* file_path, uint8_t** buffer, size_t* size);
+int write_decoded(const char* file_path, uint8_t* buffer, size_t buf_size);
 char encode_char(char* key, size_t key_len, char input_char, size_t* i);
 void xor_key(char* key, size_t len, bool dir);
 
 //const char* ti_default_key = "DefaultChemIDVerificationToolKey-32BitsShowsPatternsinTheOutputFileSoIncreasingTheSizeTo>100,LetSizeBe =107";
 
-
+const char decrypted_ext[] = ".decrypted";
 const char header_str_bytes[] = {'T','I','E','N','C','R'};
 
 int main(int argc, char *argv[])
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
 
 	char* input_path = NULL;
 	char* output_path = NULL;
+	size_t encr_buffer_size = 0;
 
 	/*	process input args */
 	
@@ -84,7 +86,15 @@ int main(int argc, char *argv[])
 		goto err;
 	}
 
-	ret = read_encr(input_path,buffer);
+	if( output_path == NULL )
+	{
+		output_path = (char *)malloc(strlen(input_path)+1+strlen(decrypted_ext));
+		memset(output_path,0,strlen(input_path)+1+strlen(decrypted_ext));
+		strcat(output_path,input_path);
+		strcat(output_path,decrypted_ext);
+	}
+	ret = read_encr(input_path,&buffer,&encr_buffer_size);
+	write_decoded(output_path, buffer, encr_buffer_size);
 
 err:
 	free(output_path);
@@ -93,18 +103,41 @@ err:
 	return ret;
 }
 
-int read_encr(const char* file_path, uint8_t* buffer)
+int write_decoded(const char* file_path, uint8_t* buffer, size_t buf_size)
+{
+	int ret = 0;
+	FILE *fp = NULL;
+
+	fp = fopen(file_path,"wb");
+
+	if( fp == NULL )
+	{
+		printf("Error opening .encr file\n");
+		ret = ERR_FILE_IO;
+		goto err;
+	}
+
+	fwrite(buffer,1,buf_size,fp);
+
+	fclose(fp);
+
+err:
+	fclose(fp);
+	return ret;
+}
+
+int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 {
 	int ret = 0;
 	FILE *fp = NULL;
 	uint8_t header[HEADER_LEN] = {0};
 	size_t encode_index = 0;
 	size_t key_len = 0;
-	uint8_t* buf_ptr;
 	char* key_buf;
 	size_t i = 0;
 	size_t file_size;
 	size_t res;
+	uint8_t* buf_ptr;
 	
 	fp = fopen(file_path,"rb");
 
@@ -119,8 +152,7 @@ int read_encr(const char* file_path, uint8_t* buffer)
 	fseek(fp,0,SEEK_END);
 	file_size = ftell(fp);
 
-	buffer = (uint8_t*)malloc(file_size);
-	buf_ptr = buffer;
+	buf_ptr = (uint8_t*)malloc(file_size);
 	
 	/* Back to the header */
 	fseek(fp,0x00,SEEK_SET);
@@ -171,25 +203,22 @@ int read_encr(const char* file_path, uint8_t* buffer)
 	i = 0;
 	while(!feof(fp) && i < file_size)
 	{
-		res = fread(buf_ptr,1,1,fp);
+		res = fread(&buf_ptr[i],1,1,fp);
 		if( res != 1 )
 		{
 			break;
 		}
 	
-		*buf_ptr = encode_char(key_buf, key_len, *buf_ptr, &encode_index);
-		printf("%c", *buf_ptr);
-		buf_ptr++;
+		buf_ptr[i] = encode_char(key_buf, key_len, buf_ptr[i], &encode_index);
+		printf("%c", buf_ptr[i]);
 		i++;
 	}
 
-	fclose(fp);
-
-	return ret;
+	*buffer = buf_ptr;
+	*size = file_size;
 err:
 	fclose(fp);
-	free(buffer);
-	free(key_buf);
+	//free(key_buf);
 	return ret;
 }
 
