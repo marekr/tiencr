@@ -94,6 +94,11 @@ int main(int argc, char *argv[])
 		strcat(output_path,decrypted_ext);
 	}
 	ret = read_encr(input_path,&buffer,&encr_buffer_size);
+	if( ret )
+	{
+		goto err;
+	}
+
 	ret = write_buffer(output_path, buffer, encr_buffer_size);
 	if( !ret )
 	{
