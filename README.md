@@ -10,7 +10,7 @@ This tool is explicitly for educational purposes. It is also USE AT YOUR OWN RIS
 compile
 -----
 The repo comes with a Visual C++ 2013 project.
-This code should compile on relatively recent version of MSVC++ or even gcc (excluding the ported getopt files of course). 
+This code should compile on any relatively recent version of MSVC++ or even gcc (excluding the ported getopt files of course on Linux). 
 
 usage
 -----
