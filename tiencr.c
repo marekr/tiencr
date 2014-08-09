@@ -222,7 +222,8 @@ int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size
 
 	fwrite(header_str_bytes,sizeof(header_str_bytes),1,fp);
 	fwrite(dummy_buffer,8,1,fp);
-	xor_key(key, key_len, 0);
+
+	xor_key(key, key_len, true);
 	fwrite(key,key_len,1,fp);
 
 	for(i=0;i<buf_size;i++)
@@ -344,7 +345,7 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 	}
 
 	res = fread(key_buf,1,key_len,fp);
-	xor_key(key_buf, key_len, 1);
+	xor_key(key_buf, key_len, false);
 	
 	file_size -= key_len;
 	file_size -= 1;				/*key length byte */
@@ -380,26 +381,22 @@ err:
  *
  * \param key Key data to be XORed
  * \param len Key length 
- * \param dir Direction of XOR
+ * \param encrypt Encrypt or decrypt direction of the key
  */
-void xor_key(uint8_t* key, size_t len, bool dir)
+void xor_key(uint8_t* key, size_t len, bool encrypt)
 {
 	size_t i = 0;
-	uint8_t* original_key = (uint8_t *)malloc(len);
-	memcpy(original_key, key, len);
 
-	if( dir )
+	if( encrypt )
 	{
 		for( i = 1; i < len; ++i )
-			key[i] ^= original_key[i-1];
+			key[i] ^= key[i-1];
 	}
 	else
 	{
 		for( i = len-1; i > 0; --i )
-			key[i] ^= original_key[i-1];
+			key[i] ^= key[i-1];
 	}
-
-	free(original_key);
 }
 
 /*
