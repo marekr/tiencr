@@ -45,12 +45,14 @@ typedef int bool;
 int read_encr(const char* file_path, uint8_t** buffer, size_t* size);
 int read_file_to_buffer(const char* file_path, uint8_t** buffer, size_t* buf_size);
 int write_buffer(const char* file_path, uint8_t* buffer, size_t buf_size);
-char encode_char(char* key, size_t key_len, char input_char, size_t* i);
-void xor_key(char* key, size_t len, bool dir);
+int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size);
+char encode_char(uint8_t* key, size_t key_len, char input_char, size_t* i);
+void xor_key(uint8_t* key, size_t len, bool dir);
 
-//const char* ti_default_key = "DefaultChemIDVerificationToolKey-32BitsShowsPatternsinTheOutputFileSoIncreasingTheSizeTo>100,LetSizeBe =107";
+const char* ti_default_key = "DefaultChemIDVerificationToolKey-32BitsShowsPatternsinTheOutputFileSoIncreasingTheSizeTo>100,LetSizeBe =107";
 
 const char decrypted_ext[] = ".decrypted";
+const char encrypted_ext[] = ".encr";
 const char header_str_bytes[] = {'T','I','E','N','C','R'};
 
 int main(int argc, char *argv[])
@@ -115,8 +117,17 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
+		if( output_path == NULL )
+		{
+			output_path = (char *)malloc(strlen(input_path)+1+strlen(encrypted_ext));
+			memset(output_path,0,strlen(input_path)+1+strlen(encrypted_ext));
+			strcat(output_path,input_path);
+			strcat(output_path,encrypted_ext);
+		}
+
 		/* encrypt the file! */
 		read_file_to_buffer(input_path, &buffer, &encr_buffer_size);
+		write_buffer_as_encr(output_path, buffer, encr_buffer_size);
 	}
 
 err:
@@ -185,6 +196,55 @@ err:
  * \param buffer Pointer to byte buffer to write out
  * \param buf_size Size of buffer
  */
+int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size)
+{
+	int ret = 0;
+	FILE *fp = NULL;
+	uint8_t key_len_xor_val = 0x6c;
+	uint8_t key_len = strlen(ti_default_key);
+	size_t encode_index = 0;
+	uint8_t key[] = "DefaultChemIDVerificationToolKey-32BitsShowsPatternsinTheOutputFileSoIncreasingTheSizeTo>100,LetSizeBe =107";
+	uint8_t dummy_buffer[10] = {0};
+	size_t i = 0;
+
+	fp = fopen(file_path,"wb");
+
+	if( fp == NULL )
+	{
+		printf("Error opening .encr file\n");
+		ret = ERR_FILE_IO;
+		goto err;
+	}
+
+	dummy_buffer[0] = 0x1;	//fixed
+	dummy_buffer[1] = key_len_xor_val;
+	dummy_buffer[7] = key_len ^ key_len_xor_val;
+
+	fwrite(header_str_bytes,sizeof(header_str_bytes),1,fp);
+	fwrite(dummy_buffer,8,1,fp);
+	xor_key(key, key_len, 1);
+	fwrite(key,key_len,1,fp);
+
+	for(i=0;i<buf_size;i++)
+	{
+		buffer[i] = encode_char(key, key_len, buffer[i], &encode_index);
+		fwrite(&buffer[i],1,1,fp);
+	}
+
+	fclose(fp);
+
+err:
+	fclose(fp);
+	return ret;
+}
+
+/*
+ * \brief Write out the specified buffer
+ *
+ * \param file_path Output file
+ * \param buffer Pointer to byte buffer to write out
+ * \param buf_size Size of buffer
+ */
 int write_buffer(const char* file_path, uint8_t* buffer, size_t buf_size)
 {
 	int ret = 0;
@@ -222,7 +282,7 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 	uint8_t header[HEADER_LEN] = {0};
 	size_t encode_index = 0;
 	size_t key_len = 0;
-	char* key_buf;
+	uint8_t* key_buf;
 	size_t i = 0;
 	size_t file_size;
 	size_t res;
@@ -241,8 +301,6 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 	fseek(fp,0,SEEK_END);
 	file_size = ftell(fp);
 
-	buf_ptr = (uint8_t*)malloc(file_size);
-	
 	/* Back to the header */
 	fseek(fp,0x00,SEEK_SET);
 	res = fread(header,HEADER_LEN,1,fp);
@@ -278,7 +336,7 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 	key_len = header[0] ^ header[7];
 
 	/* Grab the key which is next */
-	key_buf = (char *)malloc(key_len);
+	key_buf = (uint8_t *)malloc(key_len);
 	if( key_buf == NULL )
 	{
 		ret = ERR_MEMORY;
@@ -287,6 +345,13 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 
 	res = fread(key_buf,1,key_len,fp);
 	xor_key(key_buf, key_len, 1);
+	
+	file_size -= key_len;
+	file_size -= 1;				/*key length byte */
+	file_size -= HEADER_LEN;
+
+	buf_ptr = (uint8_t*)malloc(file_size);
+
 
 	/* Read and decode to buffer */
 	i = 0;
@@ -317,10 +382,10 @@ err:
  * \param len Key length 
  * \param dir Direction of XOR
  */
-void xor_key(char* key, size_t len, bool dir)
+void xor_key(uint8_t* key, size_t len, bool dir)
 {
 	size_t i = 0;
-	char* original_key = (char *)malloc(len);
+	uint8_t* original_key = (uint8_t *)malloc(len);
 	memcpy(original_key, key, len);
 
 	if( dir )
@@ -346,7 +411,7 @@ void xor_key(char* key, size_t len, bool dir)
  * \param i Pointer to variable to track current position in key. 
  *			This must be used for consecutive data.
  */
-char encode_char(char* key, size_t key_len, char input_char, size_t* key_index)
+char encode_char(uint8_t* key, size_t key_len, char input_char, size_t* key_index)
 {
 	char current_key_char = key[*key_index];
 	(*key_index)++;
