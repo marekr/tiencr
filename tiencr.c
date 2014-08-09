@@ -43,7 +43,7 @@ typedef int bool;
 #define ERR_FILE_READ	4
 
 int read_encr(const char* file_path, uint8_t** buffer, size_t* size);
-int write_decoded(const char* file_path, uint8_t* buffer, size_t buf_size);
+int write_buffer(const char* file_path, uint8_t* buffer, size_t buf_size);
 char encode_char(char* key, size_t key_len, char input_char, size_t* i);
 void xor_key(char* key, size_t len, bool dir);
 
@@ -94,8 +94,11 @@ int main(int argc, char *argv[])
 		strcat(output_path,decrypted_ext);
 	}
 	ret = read_encr(input_path,&buffer,&encr_buffer_size);
-	write_decoded(output_path, buffer, encr_buffer_size);
-
+	ret = write_buffer(output_path, buffer, encr_buffer_size);
+	if( !ret )
+	{
+		printf("Done\n");
+	}
 err:
 	free(output_path);
 	free(input_path);
@@ -103,7 +106,14 @@ err:
 	return ret;
 }
 
-int write_decoded(const char* file_path, uint8_t* buffer, size_t buf_size)
+/*
+ * \brief Write out the specified buffer
+ *
+ * \param file_path Output file
+ * \param buffer Pointer to byte buffer to write out
+ * \param buf_size Size of buffer
+ */
+int write_buffer(const char* file_path, uint8_t* buffer, size_t buf_size)
 {
 	int ret = 0;
 	FILE *fp = NULL;
@@ -126,6 +136,13 @@ err:
 	return ret;
 }
 
+/*
+ * \brief Read's the specified encr file and returns a buffer with file size
+ *
+ * \param file_path Input file
+ * \param buffer Pointer to byte buffer to return the allocated buffer to
+ * \param size Size of buffer
+ */
 int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 {
 	int ret = 0;
@@ -210,7 +227,6 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 		}
 	
 		buf_ptr[i] = encode_char(key_buf, key_len, buf_ptr[i], &encode_index);
-		printf("%c", buf_ptr[i]);
 		i++;
 	}
 
@@ -218,10 +234,17 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 	*size = file_size;
 err:
 	fclose(fp);
-	//free(key_buf);
+	free(key_buf);
 	return ret;
 }
 
+/*
+ * \brief XOR's the data key back to its original form
+ *
+ * \param key Key data to be XORed
+ * \param len Key length 
+ * \param dir Direction of XOR
+ */
 void xor_key(char* key, size_t len, bool dir)
 {
 	size_t i = 0;
@@ -238,16 +261,27 @@ void xor_key(char* key, size_t len, bool dir)
 		for( i = len-1; len > 0; --len )
 			key[i] ^= original_key[i-1];
 	}
+
+	free(original_key);
 }
 
-char encode_char(char* key, size_t key_len, char input_char, size_t* i)
+/*
+ * \brief Encodes/decodes a character using XOR and the key
+ *
+ * \param key Key data
+ * \param len Key length 
+ * \param input_char Input character
+ * \param i Pointer to variable to track current position in key. 
+ *			This must be used for consecutive data.
+ */
+char encode_char(char* key, size_t key_len, char input_char, size_t* key_index)
 {
-	char current_key_char = key[*i];
-	(*i)++;
+	char current_key_char = key[*key_index];
+	(*key_index)++;
 
-	if( *i == key_len)
+	if( *key_index == key_len)
 	{
-		*i = 0;
+		*key_index = 0;
 	}
 
 	return input_char ^ current_key_char;
