@@ -36,6 +36,9 @@ typedef int bool;
 #define true 1
 #endif
 
+#define VERSION_MAJOR	0
+#define VERSION_MINOR	1
+
 #define ENCRYPT_KEY_SIZE 12
 #define HEADER_LEN 13
 #define ERR_NONE		0
@@ -51,6 +54,7 @@ int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size
 char encode_char(uint8_t* key, size_t key_len, char input_char, size_t* i);
 void xor_key(uint8_t* key, size_t len, bool dir);
 void populate_key(uint8_t* key, size_t len);
+void print_usage(void);
 
 const char decrypted_ext[] = ".decrypted";
 const char encrypted_ext[] = ".encr";
@@ -76,7 +80,7 @@ int main(int argc, char *argv[])
 	/*	process input args */
 	
 	int opt;
-	while ((opt = getopt (argc, argv, "dei:o:")) != -1)
+	while ((opt = getopt (argc, argv, "?hdei:o:")) != -1)
 	{
 		switch (opt)
 		{
@@ -91,15 +95,20 @@ int main(int argc, char *argv[])
 				output_path = (char *)malloc(strlen(optarg)+1);
 				strcpy(output_path, optarg);
 				break;
+			case '?':
+			case 'h':
+				print_usage();
+				return 0;
+				break;
 		}
 	}
+
 	if( input_path == NULL )
 	{
 		printf("Error: Input file not specified\n");
 		ret = ERR_ARGS;
 		goto err;
 	}
-
 
 	if( decrypt )
 	{
@@ -145,6 +154,16 @@ err:
 	free(input_path);
 
 	return ret;
+}
+
+void print_usage(void)
+{
+	printf("tiencr version %d.%d\n", VERSION_MAJOR, VERSION_MINOR);
+	printf("arguments:\n");
+	printf("i - specifies input file\n");
+	printf("d - decrypt the specified input file(default option and not required)\n");
+	printf("e - encrypt the specified input file\n");
+	printf("o - output file destination(defaults to input file name + .encr at the end)\n");
 }
 
 /*
