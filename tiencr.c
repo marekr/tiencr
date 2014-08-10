@@ -25,16 +25,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <conio.h>
 #include <stdint.h>
-#include "getopt.h"
+#include <time.h>
 
 #ifdef _WIN32
+#include "getopt.h"
+
 typedef int bool;
 #define false 0
 #define true 1
 #endif
 
+#define ENCRYPT_KEY_SIZE 12
 #define HEADER_LEN 13
 #define ERR_NONE		0
 #define ERR_ARGS		1
@@ -48,13 +50,18 @@ int write_buffer(const char* file_path, uint8_t* buffer, size_t buf_size);
 int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size);
 char encode_char(uint8_t* key, size_t key_len, char input_char, size_t* i);
 void xor_key(uint8_t* key, size_t len, bool dir);
-
-const char* ti_default_key = "DefaultChemIDVerificationToolKey-32BitsShowsPatternsinTheOutputFileSoIncreasingTheSizeTo>100,LetSizeBe =107";
+void populate_key(uint8_t* key, size_t len);
 
 const char decrypted_ext[] = ".decrypted";
 const char encrypted_ext[] = ".encr";
 const char header_str_bytes[] = {'T','I','E','N','C','R'};
 
+/*
+ * \brief Application entry point
+ *
+ * \param argc
+ * \param argv
+ */
 int main(int argc, char *argv[])
 {
 	int ret = 0;
@@ -86,13 +93,13 @@ int main(int argc, char *argv[])
 				break;
 		}
 	}
-
 	if( input_path == NULL )
 	{
 		printf("Error: Input file not specified\n");
 		ret = ERR_ARGS;
 		goto err;
 	}
+
 
 	if( decrypt )
 	{
@@ -117,6 +124,9 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
+		/* Seed rand for encryption */
+		srand((unsigned int)time(NULL));
+
 		if( output_path == NULL )
 		{
 			output_path = (char *)malloc(strlen(input_path)+1+strlen(encrypted_ext));
@@ -137,6 +147,13 @@ err:
 	return ret;
 }
 
+/*
+ * \brief Read the contents of a file to a buffer and sets the passed in pointer to it
+ *
+ * \param file_path Path to file to read
+ * \param buffer Pointer to buffer pointer that will be set once read is complete
+ * \param buf_size Size of buffer once read is complete
+ */
 int read_file_to_buffer(const char* file_path, uint8_t** buffer, size_t* buf_size)
 {
 	int ret = 0;
@@ -190,6 +207,22 @@ err:
 }
 
 /*
+ * \brief Populate an array with random bytes, nothing special beyond that
+ *
+ * \param key Pointer to byte array
+ * \param len Length of buffer
+ */
+void populate_key(uint8_t* key, size_t len)
+{
+	size_t i;
+
+	for(i=0;i<len;i++)
+	{
+		key[i] = rand();
+	}
+}
+
+/*
  * \brief Write out the specified buffer
  *
  * \param file_path Output file
@@ -200,12 +233,18 @@ int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size
 {
 	int ret = 0;
 	FILE *fp = NULL;
-	uint8_t key_len_xor_val = 0x6c;
-	uint8_t key_len = strlen(ti_default_key);
+	uint8_t key_len_xor_val = rand();
 	size_t encode_index = 0;
-	uint8_t key[] = "DefaultChemIDVerificationToolKey-32BitsShowsPatternsinTheOutputFileSoIncreasingTheSizeTo>100,LetSizeBe =107";
+
+	uint8_t key[ENCRYPT_KEY_SIZE] = {0};
+	uint8_t key_copy[ENCRYPT_KEY_SIZE] = {0};
+	uint8_t key_len = ENCRYPT_KEY_SIZE;
+
 	uint8_t dummy_buffer[10] = {0};
 	size_t i = 0;
+
+	populate_key(key,sizeof(key));
+	memcpy(key_copy,key,sizeof(key));
 
 	fp = fopen(file_path,"wb");
 
@@ -228,7 +267,7 @@ int write_buffer_as_encr(const char* file_path, uint8_t* buffer, size_t buf_size
 
 	for(i=0;i<buf_size;i++)
 	{
-		buffer[i] = encode_char(key, key_len, buffer[i], &encode_index);
+		buffer[i] = encode_char(key_copy, key_len, buffer[i], &encode_index);
 		fwrite(&buffer[i],1,1,fp);
 	}
 
