@@ -5,7 +5,9 @@ This program will allow decrypting TI's .encr, .chem and possibly .senc file for
 They are all files from TI's battery management IC line of softwares like the bq20zXXXX and bq34zXXXX to name a few. 
 The files are used for configuration of the chips. There may be other files used by their software using the same encryption scheme this may work on.
 
-This tool is explicitly for educational purposes. It is also USE AT YOUR OWN RISK per the license.
+This tool is a completely "third party" tool and is definitely not supported in any way by TI. The software creator has no relation to TI or their employees.
+This tool is USE AT YOUR OWN RISK and provided AS IS per the MIT LICENSE as described in the LICENSE file. 
+
 
 compile
 -----
