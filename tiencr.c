@@ -341,11 +341,11 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 	uint8_t header[HEADER_LEN] = {0};
 	size_t encode_index = 0;
 	size_t key_len = 0;
-	uint8_t* key_buf;
+	uint8_t* key_buf = NULL;
 	size_t i = 0;
 	size_t file_size;
 	size_t res;
-	uint8_t* buf_ptr;
+	uint8_t* buf_ptr = NULL;
 	
 	fp = fopen(file_path,"rb");
 
@@ -382,8 +382,15 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 		}
 	}
 
+	if (header[6] != 1)
+	{
+		printf("File error: Unsupported TIENCR format\n");
+		ret = ERR_FILE_READ;
+		goto err;
+	}
+
 	/* Key length byte is at byte 0x0d(it's xored) */
-	fread(header,1,1,fp);
+	res = fread(header,1,1,fp);
 	if( res != 1 )
 	{
 		printf("File error:Unable to read header data\n");
@@ -428,9 +435,16 @@ int read_encr(const char* file_path, uint8_t** buffer, size_t* size)
 
 	*buffer = buf_ptr;
 	*size = file_size;
+	goto ok;
+
 err:
-	fclose(fp);
+	free(buf_ptr);
+ok:
 	free(key_buf);
+	if (fp != NULL)
+	{
+		fclose(fp);
+	}
 	return ret;
 }
 
